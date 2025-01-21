@@ -1,13 +1,14 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from influxdb_client import InfluxDBClient
+import os, time
+from influxdb_client_3 import InfluxDBClient3, Point
 from openai import ChatCompletion
 import os
 
 # Streamlit app layout
-st.title("Status Dashboard with Recommendations")
-st.sidebar.header("Configuration")
+# st.title("Status Dashboard with Recommendations")
+#st.sidebar.header("Configuration")
 
 # NOTE: Need to understand difference of using config sidebar vs. env variables...
 # Why use config variables? balance of public facing app with easy config options?
@@ -21,42 +22,44 @@ INFLUXDB_TOKEN = os.getenv('INFLUXDB_TOKEN')
 OPENAI_API = os.getenv('OPENAIAPI')
 
 # Input configuration
-influxdb_url = st.sidebar.text_input("InfluxDB URL", "http://localhost:8086")
-influxdb_token = st.sidebar.text_input("InfluxDB Token", type="password")
-influxdb_org = st.sidebar.text_input("InfluxDB Organization")
-influxdb_bucket = st.sidebar.text_input("InfluxDB Bucket")
+# influxdb_url = st.sidebar.text_input("InfluxDB URL", "http://localhost:8086")
+# influxdb_token = st.sidebar.text_input("InfluxDB Token", type="password")
+# influxdb_org = st.sidebar.text_input("InfluxDB Organization")
+# influxdb_bucket = st.sidebar.text_input("InfluxDB Bucket")
 
-openai_api_key = st.sidebar.text_input("OpenAI API Key", type="password")
-st.sidebar.write("Enter credentials and refresh the app.")
+# openai_api_key = st.sidebar.text_input("OpenAI API Key", type="password")
+# st.sidebar.write("Enter credentials and refresh the app.")
 
 # Function to query historical data from InfluxDB
 def query_historical_data():
-    query = f"""
+    query = """
     SELECT status, time
-    FROM {influxdb_bucket}
-    WHERE time > now() - 7d
+    FROM 'habit_tracker'
+    WHERE time > now() - interval '7 days'
     """
-    with InfluxDBClient(url=influxdb_url, token=influxdb_token, org=influxdb_org) as client:
-        tables = client.query_api().query(query)
-        data = []
-        for table in tables:
-            for record in table.records:
-                data.append({"time": record.get_time(), "status": record.get_value()})
-        return pd.DataFrame(data)
+
+    with InfluxDBClient3(host=INFLUXDB_URL, token=INFLUXDB_TOKEN, org=INFLUXDB_ORG) as client:
+        # Execute the query
+        table = client.query(query=query, database="personal_projects", language='sql')
+        # Convert to dataframe
+        df = table.to_pandas().sort_values(by="time")
+        return df
+    
 
 # Function to query the current status
 def query_current_status():
     query = f"""
     SELECT status
-    FROM {influxdb_bucket}
+    FROM 'habit_tracker'
     ORDER BY time DESC
     LIMIT 1
     """
-    with InfluxDBClient(url=influxdb_url, token=influxdb_token, org=influxdb_org) as client:
-        tables = client.query_api().query(query)
-        for table in tables:
-            for record in table.records:
-                return record.get_value()
+    with InfluxDBClient3(host=INFLUXDB_URL, token=INFLUXDB_TOKEN, org=INFLUXDB_ORG) as client:
+        # Execute the query
+        table = client.query(query=query, database="personal_projects", language='sql')
+        # Convert to dataframe
+        df = table.to_pandas()
+        return df['status'][0]
 
 # Function to analyze habit patterns with an LLM
 def analyze_patterns(data):
@@ -75,7 +78,7 @@ def analyze_patterns(data):
     return response.choices[0].message["content"]
 
 # Main application logic
-if influxdb_url and influxdb_token and influxdb_org and influxdb_bucket:
+if INFLUXDB_URL and INFLUXDB_TOKEN and INFLUXDB_ORG and INFLUXDB_BUCKET:
     # Query historical data
     historical_data = query_historical_data()
 
