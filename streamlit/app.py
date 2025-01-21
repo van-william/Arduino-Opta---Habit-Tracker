@@ -89,28 +89,28 @@ if INFLUXDB_URL and INFLUXDB_TOKEN and INFLUXDB_ORG and INFLUXDB_BUCKET:
     else:
         st.warning("No current status available.")
     # Query historical data
-    historical_2_days = query_historical_data('2 days')
-    historical_6_hours = query_historical_data('6 hours')
+    historical_long = query_historical_data('2 days')
+    historical_short = query_historical_data('1 hour')
 
-    if not historical_2_days.empty:
+    if not historical_long.empty:
         # Process data for visualization
-        historical_2_days["minute"] = historical_2_days["time"].dt.floor("min")
-        historical_2_days["hour"] = historical_2_days["time"].dt.floor("h")
-        aggregated_data_hourly = historical_2_days.groupby(["hour", "status"]).size().reset_index(name="count")
+        historical_long["minute"] = historical_long["time"].dt.floor("min")
+        historical_long["hour"] = historical_long["time"].dt.floor("h")
+        aggregated_data_hourly = historical_long.groupby(["hour", "status"]).size().reset_index(name="count")
         aggregated_data_hourly = aggregated_data_hourly.pivot(index="hour", columns="status", values="count").fillna(0)
         # Convert datetime columns to strings for Plotly, if needed
         aggregated_data_hourly.index = aggregated_data_hourly.index.strftime("%Y-%m-%d %H:%M:%S")
 
         # Process data for visualization
-        historical_6_hours["minute"] = historical_6_hours["time"].dt.floor("min")
-        historical_6_hours["hour"] = historical_6_hours["time"].dt.floor("h")
-        aggregated_data_minutes = historical_2_days.groupby(["minute", "status"]).size().reset_index(name="count")
+        historical_short["minute"] = historical_short["time"].dt.floor("min")
+        historical_short["hour"] = historical_short["time"].dt.floor("h")
+        aggregated_data_minutes = historical_short.groupby(["minute", "status"]).size().reset_index(name="count")
         aggregated_data_minutes = aggregated_data_minutes.pivot(index="minute", columns="status", values="count").fillna(0)
         # Convert datetime columns to strings for Plotly, if needed
         aggregated_data_minutes.index = aggregated_data_minutes.index.strftime("%Y-%m-%d %H:%M:%S")
 
         # Plot stacked bar chart
-        st.subheader("Minute Aggregation")
+        st.subheader("Hour Summary")
         fig1 = px.bar(
             aggregated_data_minutes,
             x=aggregated_data_minutes.index,
@@ -121,7 +121,7 @@ if INFLUXDB_URL and INFLUXDB_TOKEN and INFLUXDB_ORG and INFLUXDB_BUCKET:
         fig1.update_yaxes(showticklabels=False, title=None)
         st.plotly_chart(fig1)
         # Plot stacked bar chart
-        st.subheader("Hourly Aggregation")
+        st.subheader("2 Day Summary")
         fig2 = px.bar(
             aggregated_data_hourly,
             x=aggregated_data_hourly.index,
